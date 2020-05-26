@@ -2,6 +2,8 @@ import React, { Component } from "react";
 import io from "socket.io-client";
 import Video from "./component/Video";
 import Videos from "./component/VideosC";
+import Draggable from "./component/Draggable";
+import Chat from "./component/Chat";
 
 class AppC extends Component {
   constructor(props) {
@@ -50,6 +52,10 @@ class AppC extends Component {
           mirror: true,
         },
       },
+
+      messages: [],
+      sendChannels: [],
+      disconnected: false,
     };
 
     this.socket = null;
@@ -93,6 +99,7 @@ class AppC extends Component {
 
       this.setState({
         status: newStatus,
+        messages: data.messages,
       });
     });
 
@@ -146,6 +153,52 @@ class AppC extends Component {
       this.createPeerConnection(socketId, (pc) => {
         //Now create offer for the connected peer
         if (pc) {
+          //Send Channel
+          const handleSendChannelStatusChange = (event) => {
+            console.log(
+              "send channel status: " + this.state.sendChannels[0].readyState
+            );
+          };
+
+          const sendChannel = pc.createDataChannel("sendChannel");
+          sendChannel.onopen = handleSendChannelStatusChange;
+          sendChannel.onclose = handleSendChannelStatusChange;
+
+          this.setState((prevState) => {
+            return {
+              sendChannels: [...prevState.sendChannels, sendChannel],
+            };
+          });
+
+          // Receive Channels
+          const handleReceiveMessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log(message);
+            this.setState((prevState) => {
+              return {
+                messages: [...prevState.messages, message],
+              };
+            });
+          };
+
+          const handleReceiveChannelStatusChange = (event) => {
+            if (this.receiveChannel) {
+              console.log(
+                "receive channel's status has changed to " +
+                  this.receiveChannel.readyState
+              );
+            }
+          };
+
+          const receiveChannelCallback = (event) => {
+            const receiveChannel = event.channel;
+            receiveChannel.onmessage = handleReceiveMessage;
+            receiveChannel.onopen = handleReceiveChannelStatusChange;
+            receiveChannel.onclose = handleReceiveChannelStatusChange;
+          };
+
+          pc.ondatachannel = receiveChannelCallback;
+
           pc.createOffer(sdpConstraints).then(
             (sdp) => {
               pc.setLocalDescription(sdp);
@@ -169,6 +222,53 @@ class AppC extends Component {
       this.createPeerConnection(data.socketId, (pc) => {
         if (pc) {
           pc.addStream(localStream);
+
+          //Send Channels
+          const handleSendChannelStatusChange = (event) => {
+            console.log(
+              "send channel status: " + this.state.sendChannels[0].readyState
+            );
+          };
+
+          const sendChannel = pc.createDataChannel("sendChannel");
+          sendChannel.onopen = handleSendChannelStatusChange;
+          sendChannel.onclose = handleSendChannelStatusChange;
+
+          this.setState((prevState) => {
+            return {
+              sendChannels: [...prevState.sendChannels, sendChannel],
+            };
+          });
+
+          // Receive Channels
+          const handleReceiveMessage = (event) => {
+            const message = JSON.parse(event.data);
+            console.log(message);
+            this.setState((prevState) => {
+              return {
+                messages: [...prevState.messages, message],
+              };
+            });
+          };
+
+          const handleReceiveChannelStatusChange = (event) => {
+            if (this.receiveChannel) {
+              console.log(
+                "receive channel's status has changed to " +
+                  this.receiveChannel.readyState
+              );
+            }
+          };
+
+          const receiveChannelCallback = (event) => {
+            const receiveChannel = event.channel;
+            receiveChannel.onmessage = handleReceiveMessage;
+            receiveChannel.onopen = handleReceiveChannelStatusChange;
+            receiveChannel.onclose = handleReceiveChannelStatusChange;
+          };
+
+          pc.ondatachannel = receiveChannelCallback;
+
           pc.setRemoteDescription(new RTCSessionDescription(data.sdp)).then(
             () => {
               //Create Answer
@@ -340,29 +440,61 @@ class AppC extends Component {
   };
 
   render() {
-    const { selectedVideo, remoteStreams, localStream } = this.state;
+    const {
+      selectedVideo,
+      remoteStreams,
+      localStream,
+      disconnected,
+    } = this.state;
+
+    const refreshPage = () => {
+      window.location.reload(false);
+    };
+
+    if (disconnected) {
+      this.socket.close();
+      localStream.getTracks().forEach((track) => track.stop());
+      return (
+        <div>
+          <span>You have successfully Disconnected</span>
+          <br />
+          <button style = {{height: 50, width: 100, padding: 8, borderRadius: 8}}onClick={refreshPage}>Join Again</button>
+        </div>
+      );
+    }
+
     return (
       <div>
-        <Video
-          videoStyle={{
+        <Draggable
+          style={{
+            zIndex: 101,
             position: "absolute",
-            width: 200,
-            zIndex: 2,
-            // right: 0,
-            // height: 300,
-            // margin: 8,
-            // background: "#0f0f0f",
+            right: 0,
+            cursor: "move",
           }}
-          frameStyle={{
-            width: 200,
-            margin: 5,
-            borderRadius: 5,
-            backgroundColor: "black",
-          }}
-          videoStream={localStream}
-          autoPlay
-          muted
-        />
+        >
+          <Video
+            videoStyle={{
+              width: 200,
+              //   position: "absolute",
+              //   zIndex: 2,
+              // right: 0,
+              // height: 300,
+              // margin: 8,
+              // background: "#0f0f0f",
+            }}
+            frameStyle={{
+              width: 200,
+              margin: 5,
+              borderRadius: 5,
+              backgroundColor: "black",
+            }}
+            videoStream={localStream}
+            autoPlay
+            muted
+            showMuteControls={true}
+          />
+        </Draggable>
         <Video
           videoStyle={{
             height: "100%",
@@ -387,6 +519,16 @@ class AppC extends Component {
             // backgroundColor: "#cdc4ff4f",
           }}
         >
+          <i
+            onClick={(e) => {
+              this.setState({ disconnected: true });
+            }}
+            style={{ cursor: "pointer", paddingLeft: 15, color: "red" }}
+            class="material-icons"
+          >
+            highlight_off
+          </i>
+
           <div
             style={{
               margin: 10,
@@ -404,6 +546,24 @@ class AppC extends Component {
             remoteStreams={this.state.remoteStreams}
           />
         </div>
+        <Chat
+          user={{
+            uid: (this.socket && this.socket.id) || "",
+          }}
+          messages={this.state.messages}
+          sendMessage={(message) => {
+            this.setState((prevState) => {
+              return { messages: [...prevState.messages, message] };
+            });
+            this.state.sendChannels.map((sendChannel) => {
+              sendChannel.readyState === "open" &&
+                sendChannel.send(JSON.stringify(message));
+            });
+            this.sendToServer("new-message", JSON.stringify(message), {
+              local: this.socket.id,
+            });
+          }}
+        />
       </div>
     );
   }

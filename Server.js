@@ -22,19 +22,24 @@ const io = socketIo(server, { path: "/io/webrtc" });
 
 const peers = io.of("/webrtcPeer");
 
-//Keep references of all socket connections
-// let connectedPeers = new Map();
+//Keep references of all socket and Room connections
 const rooms = {};
+const messages = {};
 
 peers.on("connection", (socket) => {
   const room = socket.handshake.query.room;
   console.log("New User Connected with socket id ", socket.id, "Room : ", room);
-  
-  rooms[room] = (rooms[room] && rooms[room].set(socket.id, socket)) || (new Map).set(socket.id, socket);
-  
+
+  rooms[room] =
+    (rooms[room] && rooms[room].set(socket.id, socket)) ||
+    new Map().set(socket.id, socket);
+
+  messages[room] = messages[room] || [];
+
   socket.emit("connection-success", {
     success: socket.id,
     peerCount: rooms[room].size,
+    messages: messages[room],
   });
 
   //   connectedPeers.set(socket.id, socket);
@@ -56,14 +61,6 @@ peers.on("connection", (socket) => {
 
   broadcast();
 
-  //   const disconnectedPeer = (socketId) => {
-  //     console.log(`New peer count ${connectedPeers.size}`);
-  //     socket.broadcast.emit("peer-disconnected", {
-  //       peerCount: connectedPeers.size,
-  //       socketId,
-  //     });
-  //   };
-
   const disconnectedPeer = (socketId) => {
     const connectedPeers = rooms[room];
 
@@ -76,6 +73,11 @@ peers.on("connection", (socket) => {
       });
     }
   };
+
+  socket.on("new-message", (data) => {
+    console.log("new message ", JSON.parse(data.payload));
+    messages[room] = [...messages[room], JSON.parse(data.payload)];
+  });
 
   socket.on("disconnect", () => {
     const connectedPeers = rooms[room];
