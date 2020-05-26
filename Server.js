@@ -47,7 +47,7 @@ peers.on("connection", (socket) => {
     const connectedPeers = rooms[room];
     for (const [socketId, _socket] of connectedPeers.entries()) {
       if (socketId !== socket.id) {
-        socket.emit("joined-peers", {
+        _socket.emit("joined-peers", {
           peerCount: connectedPeers.size,
         });
       }
@@ -121,7 +121,6 @@ peers.on("connection", (socket) => {
     const connectedPeers = rooms[room];
     for (const [socketId, socket] of connectedPeers.entries()) {
       if (socketId === data.socketId.remote) {
-        console.log(socketId, data.payload);
         socket.emit("candidate", {
           candidate: data.payload,
           socketId: data.socketId.local,

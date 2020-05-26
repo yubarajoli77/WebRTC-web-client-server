@@ -11,21 +11,21 @@ class VideosC extends Component {
   }
 
   componentWillReceiveProps(nextProps) {
-    console.log("RemoteStreams Next props ", nextProps.remoteStreams);
-    console.log("RemoteStreams State ", this.state.remoteStreams);
     if (this.state.remoteStreams !== nextProps.remoteStreams) {
-      console.log("Videos props ", this.props);
+    //   console.log("Videos props ", this.props);
       let tempVideos = [];
       nextProps.remoteStreams.forEach((video, index) => {
         tempVideos.push(this.makeVideoView(video, index));
       });
-      console.log("Called Videos ", tempVideos);
       this.setState({ rVideos: tempVideos });
     }
   }
 
   makeVideoView = (video, index) => {
-    console.log("Make Video View", index, video);
+    // console.log("Make Video View", index, video);
+    const isVideoTrack = video.stream
+      .getTracks()
+      .filter((track) => track.kind === "video");
     return (
       <div
         id={video.name}
@@ -35,22 +35,26 @@ class VideosC extends Component {
         style={{ display: "inline-block" }}
         key={index}
       >
-        <Video
-          videoStyle={{
-            cursor: "pointer",
-            objectFit: "cover",
-            borderRadius: 3,
-            width: 120,
-            //   width: "100%",
-          }}
-          frameStyle={{
-            //   width: 120,
-            float: "left",
-            padding: "0 3px",
-          }}
-          videoStream={video.stream}
-          from="Videos"
-        />
+        {isVideoTrack ? (
+          <Video
+            videoStyle={{
+              cursor: "pointer",
+              objectFit: "cover",
+              borderRadius: 3,
+              width: "100%",
+            }}
+            frameStyle={{
+              width: 120,
+              float: "left",
+              padding: "0 3px",
+            }}
+            videoStream={video.stream}
+            autoplay
+            muted
+          />
+        ) : (
+          <div></div>
+        )}
       </div>
     );
   };

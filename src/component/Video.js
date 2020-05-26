@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 function Video(props) {
   const [video, setVideo] = useState(null);
   useEffect(() => {
-      console.log("Video Called ", props)
+      // console.log("Video Props ", props)
     if (video && props.videoStream) video.srcObject = props.videoStream;
   }, [props.videoStream]);
 
