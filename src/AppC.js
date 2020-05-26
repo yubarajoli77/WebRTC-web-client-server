@@ -13,21 +13,21 @@ class AppC extends Component {
       peerConnections: {},
       selectedVideo: null,
       status: "Please wait...",
-      serverUrl: "https://5ce908c8.ngrok.io/",
+      serverUrl: "https://5bc6a7e7.ngrok.io/",
     //   serverUrl: "/",
       pcConfig: {
         iceServers: [
-          // {
-          //   urls: "stun:numb.viagenie.ca",
-          // },
-          // {
-          //   urls: "turn:numb.viagenie.ca",
-          //   credential: "numb-@@95",
-          //   username: "yuba.oli@amniltech.com",
-          // },
           {
-            urls: "stun:stun.l.google.com:19302",
+            urls: "stun:numb.viagenie.ca",
           },
+          {
+            urls: "turn:numb.viagenie.ca",
+            credential: "numb-@@95",
+            username: "yuba.oli@amniltech.com",
+          },
+        //   {
+        //     urls: "stun:stun.l.google.com:19302",
+        //   },
         ],
       },
       sdpConstraints: {
@@ -56,7 +56,12 @@ class AppC extends Component {
   }
 
   componentDidMount() {
-    this.socket = io(`${this.state.serverUrl}webrtcPeer`);
+    this.socket = io.connect(`${this.state.serverUrl}webrtcPeer`, {
+        path: '/io/webrtc',
+        query: {
+            room: window.location.pathname,
+        }
+    });
     this.socketEventHandler();
   }
 
@@ -79,23 +84,24 @@ class AppC extends Component {
 
   socketEventHandler = () => {
     this.socket.on("connection-success", (data) => {
+        console.log("On Connection Success", data)
       this.getLocalStream();
 
       const newStatus =
         data.peerCount > 1
-          ? `Total Connected Peers ${data.peerCount}`
+          ? `Total Connected Peers ${data.peerCount} on room ${window.location.pathname}`
           : `Waiting for other peers to connect`;
 
       this.setState({
         status: newStatus,
       });
     });
-    
+
     this.socket.on("joined-peers", (data) => {
 
       const newStatus =
         data.peerCount > 1
-          ? `Total Connected Peers ${data.peerCount}`
+          ? `Total Connected Peers ${data.peerCount} on room ${window.location.pathname}`
           : `Waiting for other peers to connect`;
 
       this.setState({
@@ -110,7 +116,7 @@ class AppC extends Component {
       );
       const newStatus =
         data.peerCount > 1
-          ? `Total Connected Peers ${data.peerCount}`
+          ?`Total Connected Peers ${data.peerCount} on room ${window.location.pathname}`
           : `Waiting for other peers to connect`;
       // check if disconnected peer is the selected video and if there still connected peers, then select the first
       if (
@@ -317,7 +323,7 @@ class AppC extends Component {
           }}
           videoStream={selectedVideo && selectedVideo.stream}
           autoPlay
-          muted
+    
           from = 'AppC remote'
         />
         <br />

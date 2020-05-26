@@ -7,42 +7,78 @@ const PORT = 8080;
 
 app.use(express.static(__dirname + "/build"));
 
+//Default Room
 app.get("/", (req, res) => {
-  res.sendFile(__dirname + "build/index.html");
+  res.sendFile(__dirname + "/build/index.html");
+});
+
+//Provided Room
+app.get("/:room", (req, res) => {
+  res.sendFile(__dirname + "/build/index.html");
 });
 
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, { path: "/io/webrtc" });
 
 const peers = io.of("/webrtcPeer");
 
 //Keep references of all socket connections
-let connectedPeers = new Map();
+// let connectedPeers = new Map();
+const rooms = {};
 
 peers.on("connection", (socket) => {
-  console.log("New User Connected with socket id ", socket.id);
-  connectedPeers.set(socket.id, socket);
-  const broadcast = () =>
-    socket.broadcast.emit("joined-peers", {
-      peerCount: connectedPeers.size,
-    });
+  const room = socket.handshake.query.room;
+  console.log("New User Connected with socket id ", socket.id, "Room : ", room);
+  
+  rooms[room] = (rooms[room] && rooms[room].set(socket.id, socket)) || (new Map).set(socket.id, socket);
+  
+  socket.emit("connection-success", {
+    success: socket.id,
+    peerCount: rooms[room].size,
+  });
+
+  //   connectedPeers.set(socket.id, socket);
+  //   const broadcast = () =>
+  //     socket.broadcast.emit("joined-peers", {
+  //       peerCount: connectedPeers.size,
+  //     });
+
+  const broadcast = () => {
+    const connectedPeers = rooms[room];
+    for (const [socketId, _socket] of connectedPeers.entries()) {
+      if (socketId !== socket.id) {
+        socket.emit("joined-peers", {
+          peerCount: connectedPeers.size,
+        });
+      }
+    }
+  };
 
   broadcast();
 
-  socket.emit("connection-success", {
-    success: socket.id,
-    peerCount: connectedPeers.size,
-  });
+  //   const disconnectedPeer = (socketId) => {
+  //     console.log(`New peer count ${connectedPeers.size}`);
+  //     socket.broadcast.emit("peer-disconnected", {
+  //       peerCount: connectedPeers.size,
+  //       socketId,
+  //     });
+  //   };
 
   const disconnectedPeer = (socketId) => {
+    const connectedPeers = rooms[room];
+
     console.log(`New peer count ${connectedPeers.size}`);
-    socket.broadcast.emit("peer-disconnected", {
-      peerCount: connectedPeers.size,
-      socketId,
-    });
+
+    for (const [_socketId, _socket] of connectedPeers) {
+      _socket.emit("peer-disconnected", {
+        peerCount: connectedPeers.size,
+        socketId,
+      });
+    }
   };
 
   socket.on("disconnect", () => {
+    const connectedPeers = rooms[room];
     console.log(`User ${socket.id} is disconnected`);
     connectedPeers.delete(socket.id);
     disconnectedPeer(socket.id);
@@ -58,6 +94,7 @@ peers.on("connection", (socket) => {
   // })
 
   socket.on("offer", (data) => {
+    const connectedPeers = rooms[room];
     for (const [socketId, socket] of connectedPeers.entries()) {
       if (socketId === data.socketId.remote) {
         socket.emit("offer", {
@@ -69,6 +106,7 @@ peers.on("connection", (socket) => {
   });
 
   socket.on("answer", (data) => {
+    const connectedPeers = rooms[room];
     for (const [socketId, socket] of connectedPeers.entries()) {
       if (socketId === data.socketId.remote) {
         socket.emit("answer", {
@@ -80,6 +118,7 @@ peers.on("connection", (socket) => {
   });
 
   socket.on("candidate", (data) => {
+    const connectedPeers = rooms[room];
     for (const [socketId, socket] of connectedPeers.entries()) {
       if (socketId === data.socketId.remote) {
         console.log(socketId, data.payload);
@@ -92,6 +131,7 @@ peers.on("connection", (socket) => {
   });
 
   socket.on("onlinePeers", (data) => {
+    const connectedPeers = rooms[room];
     for (const [socketId, _socket] of connectedPeers.entries()) {
       if (socketId !== data.socketId.local) {
         console.log("Online Peer", data.socketId, socketId);
